@@ -96,7 +96,20 @@ public void watch(Object watchedReference, String referenceName) {
 
 前面几行是这样的，根据Activity生成一个随机Key,并将Key加入到一个Set中，然后讲key，activity传如一个包装的弱饮用里。
 
-**这里引出了第一个知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
+**这里引出了第一个知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue,我们看看RefreceQueue的javadoc：**
+
+```
+/**
+ * Reference queues, to which registered reference objects are appended by the
+ * garbage collector after the appropriate reachability changes are detected.
+ *
+ * @author   Mark Reinhold
+ * @since    1.2
+ */
+public class ReferenceQueue<T> 
+```
+
+证实了上面的说法,另外看名字我们就知道，不光弱引用，软和虚引用也可以这样做。
 
 重点是最后一句:ensureGoneAsyc，看字面意思，异步确保消失。这里我们先不看代码，如果要自己设计一套检测方案的话，怎么想？其实很简单，就是在Activiy onDestroy以后，我们等一会，检测一下这个Acitivity有没有被回收，这里等一会要多久呢？而且GC的时机在app运行时我们无法确定，所以为了确保GC以后Activity还没回收，我们需要手动GC一下。
 
@@ -229,13 +242,9 @@ ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先�
 
 **这个方法挺巧妙的，retainedKeys集合了所有destoryed了的但没有被回收的Activity的key，这个集合可以用来判断一个Activity有没有被回收，但是判断之前需要用removeWeaklyReachableReferences\(\)这个方法更新一下。**
 
-
-
 一旦一个Activity检测出泄漏了，就收集泄漏信息然后通过前面配置的DisplayLeakService通知给用户并展示在DisplayLeakActivity中，后面的东西都是UI展示东西，就不是本文的重点了，有兴趣的可以自己查看。
 
+总结：本文阐述了LeakCanary的核心原理，其思路大致为：监听Activity生命周期-&gt;onDestroy以后延迟5秒判断Activity有没有被回收-&gt;如果没有回收,调用GC，在此判断是否回收，如果还没回收，则内存泄露了，反之，没有泄露。用到的一个核心技巧就是弱引用的一个构造方法：传入一个RefrenceQueue，可以记录被垃圾回收的对象引用。
 
-
-总结：本文阐述了LeakCanary的核心原理
-
-
+说个题外话，一个对象都被回收了，他的弱引用咋办，总不能一直留着吧，（引用本身也是一个强引用对象，不要把引用和引用的对象搞混了，对象可以被回收了，但是它的引用，包括软，弱，虚引用都可以继续存在）,完全不用担心，这个引用在无用之后也会被GC回收的。
 
