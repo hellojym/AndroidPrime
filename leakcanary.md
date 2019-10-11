@@ -43,8 +43,6 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
 
 `excludedRefs`: 排除可以忽略的泄漏路径
 
-
-
 **LeakCanary.enableDisplayLeakActivity\(context\)**
 
 这行代码主要是为了开启LeakCanary的应用，显示其图标.
@@ -94,17 +92,15 @@ public void watch(Object watchedReference, String referenceName) {
   }
 ```
 
-整个LeakCanary最核心的方法就在这儿了。
+整个LeakCanary最核心的思路就在这儿了。
 
-前面几行很简单，判空 + 生成一个随机Key,并将Key加入到一个Set中。
+前面几行是这样的，根据Activity生成一个随机Key,并将Key加入到一个Set中，然后讲key，activity传如一个包装的弱饮用里。
 
-**这里有个知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
+**这里引出了第一个知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
 
-因此重点是最后一句:ensureGoneAsyc，看字面意思，异步确保消失。这里我们先不看代码，如果要自己设计一套检测方案的话，怎么想？其实很简单，就是在Activiy onDestroy以后，我们等一会，检测一下这个Acitivity有没有被回收，这里等一会要多久呢？而且GC的时机在app运行时我们无法确定，所以为了确保GC以后Activity还没回收，我们需要手动GC一下。
+重点是最后一句:ensureGoneAsyc，看字面意思，异步确保消失。这里我们先不看代码，如果要自己设计一套检测方案的话，怎么想？其实很简单，就是在Activiy onDestroy以后，我们等一会，检测一下这个Acitivity有没有被回收，这里等一会要多久呢？而且GC的时机在app运行时我们无法确定，所以为了确保GC以后Activity还没回收，我们需要手动GC一下。
 
 **其实LeakCanary也是这个思路：onDestroy以后，当主线程空闲下来以后，延时5秒执行一个任务，先判断Activity有没有被回收？如果已经回收了，说明没有内存泄漏，如果还没回收，我们进一步确认，手动触发一下gc，然后再判断有没有回收，如果这次还没回收，说明Activity确实泄漏了，接下来把泄漏的信息展示给开发者就好了。**
-
-
 
 思路其实挺清晰的，我们看代码实现：
 
@@ -172,7 +168,6 @@ public void watch(Object watchedReference, String referenceName) {
       }
     });
   }
-
 ```
 
 ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先理一下思路，前面onDestory以后，AndroidWatchExecutor这个东西执行excute方法，这个方法让主线程在空闲的时候发送了一个延时任务，该任务会在5秒延时后在一个子线程执行。理清了思路，我们看看这个任务是怎么执行的。
@@ -232,7 +227,15 @@ ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先�
   }
 ```
 
-如果Actiivty被gc了，它的key会加入到queue中，而queue中所有的key都会在上一个函数中被retainedKeys集合移除掉，所以该Activity的Key就不包含在retainedKeys里面了，返回true，被回收了。可以看到这个方法挺巧妙的，retainedKeys集合中所有的key，代表着这个Key对应的Activity没有被回收，removeWeaklyReachableReferences这个方法相当于更新这个集合
+**这个方法挺巧妙的，retainedKeys集合了所有destoryed了的但没有被回收的Activity的key，这个集合可以用来判断一个Activity有没有被回收，但是判断之前需要用removeWeaklyReachableReferences\(\)这个方法更新一下。**
+
+
+
+一旦一个Activity检测出泄漏了，就收集泄漏信息然后通过前面配置的DisplayLeakService通知给用户并展示在DisplayLeakActivity中，后面的东西都是UI展示东西，就不是本文的重点了，有兴趣的可以自己查看。
+
+
+
+总结：本文阐述了LeakCanary的核心原理
 
 
 
