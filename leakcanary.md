@@ -31,17 +31,17 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
 
 build\(\)方法主要是配置：
 
-`watchExecutor` : 线程控制器，在 `onDestroy()`之后并且主线程空闲时执行内存泄漏检测
+`watchExecutor` : 线程控制器，在 onDestroy()之后并且主线程空闲时执行内存泄漏检测
 
 `debuggerControl`: 判断是否处于调试模式，调试模式中不会进行内存泄漏检测
 
-`gcTrigger`: 用于 `GC`
+`gcTrigger`: 用于GC
 
 `watchExecutor`首次检测到可能的内存泄漏，会主动进行GC,GC之后会再检测一次，仍然泄漏的判定为内存泄漏，进行后续操作
 
-`heapDumper`: `dump`内存泄漏处的 `heap`信息，写入 `hprof`文件
+`heapDumper`: dump内存泄漏处的heap信息，写入hprof文件
 
-`heapDumpListener`: 解析完`hprof`文件并通知`DisplayLeakService`弹出提醒
+`heapDumpListener`: 解析完hprof文件并通知DisplayLeakService弹出提醒
 
 `excludedRefs`: 排除可以忽略的泄漏路径
 
