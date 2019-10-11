@@ -27,7 +27,7 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
   }
 ```
 
-**build\(\)**
+**build\(\)方法，这个方法主要是配置一些东西，先大概了解一下，后面用到再说.**
 
 `watchExecutor` : 线程控制器，在 onDestroy\(\)之后并且主线程空闲时执行内存泄漏检测
 
@@ -42,6 +42,8 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
 `heapDumpListener`: 解析完hprof文件并通知DisplayLeakService弹出提醒
 
 `excludedRefs`: 排除可以忽略的泄漏路径
+
+
 
 **LeakCanary.enableDisplayLeakActivity\(context\)**
 
@@ -96,23 +98,141 @@ public void watch(Object watchedReference, String referenceName) {
 
 前面几行很简单，判空 + 生成一个随机Key,并将Key加入到一个Set中。
 
-**这里有个小知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
+**这里有个知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
 
 因此重点是最后一句:ensureGoneAsyc，看字面意思，异步确保消失。这里我们先不看代码，如果要自己设计一套检测方案的话，怎么想？其实很简单，就是在Activiy onDestroy以后，我们等一会，检测一下这个Acitivity有没有被回收，这里等一会要多久呢？而且GC的时机在app运行时我们无法确定，所以为了确保GC以后Activity还没回收，我们需要手动GC一下。
 
-**其实LeakCanary也是这个思路：onDestroy以后，当主线程空闲下来以后，延时5秒执行一个任务，先判断Activity有没有被回收？如果已经回收了，说明没有内存泄漏，如果还没回收，我们进一步确认，手动触发一下gc，然后再判断有没有回收，如果这次还没回收，说明Activity确实泄漏了。**
+**其实LeakCanary也是这个思路：onDestroy以后，当主线程空闲下来以后，延时5秒执行一个任务，先判断Activity有没有被回收？如果已经回收了，说明没有内存泄漏，如果还没回收，我们进一步确认，手动触发一下gc，然后再判断有没有回收，如果这次还没回收，说明Activity确实泄漏了，接下来把泄漏的信息展示给开发者就好了。**
 
 
 
+思路其实挺清晰的，我们看代码实现：
 
+```
+  private void ensureGoneAsync(final long watchStartNanoTime, final KeyedWeakReference reference) {
+    watchExecutor.execute(new Retryable() {
+      @Override public Retryable.Result run() {
+        return ensureGone(reference, watchStartNanoTime);
+      }
+    });
+  }
+```
 
+这里watchExecutor是AndroidWatchExecutor,看代码：
 
+```
+  @Override public void execute(Retryable retryable) {
+    if (Looper.getMainLooper().getThread() == Thread.currentThread()) {
+      waitForIdle(retryable, 0);
+    } else {
+      postWaitForIdle(retryable, 0);
+    }
+  }
+```
 
+主线程和子线程其实一样，都要到主线程中执行，
 
+```
+  void waitForIdle(final Retryable retryable, final int failedAttempts) {
+    // This needs to be called from the main thread.
+    Looper.myQueue().addIdleHandler(new MessageQueue.IdleHandler() {
+      @Override public boolean queueIdle() {
+        postToBackgroundWithDelay(retryable, failedAttempts);
+        return false;
+      }
+    });
+  }
+```
 
+**这里有第二个知识点，IdleHandler，这个东西是干嘛的，其实看名字就知道了，就是当主线程空闲的时候，如果设置了这个东西，就会执行它的queueIdle\(\)方法，所以这个方法就是在onDestory以后，一旦主线程空闲了，就会执行，然后我们看它执行了啥：**
 
+```
+  private void postToBackgroundWithDelay(final Retryable retryable, final int failedAttempts) {
+    long exponentialBackoffFactor = (long) Math.min(Math.pow(2, failedAttempts), maxBackoffFactor);
+    long delayMillis = initialDelayMillis * exponentialBackoffFactor;
+    backgroundHandler.postDelayed(new Runnable() {
+      @Override public void run() {
+        Retryable.Result result = retryable.run();
+        if (result == RETRY) {
+          postWaitForIdle(retryable, failedAttempts + 1);
+        }
+      }
+    }, delayMillis);
+  }
+}
+```
 
+很简单，延时5秒执行retryable的run\(\)，注意，因为这里是backgroundHandler post出来的，所以是下面的run是在子线程执行的。这里的retryable就是前面传过来的:
 
+```
+  private void ensureGoneAsync(final long watchStartNanoTime, final KeyedWeakReference reference) {
+    watchExecutor.execute(new Retryable() {
+      @Override public Retryable.Result run() {
+        return ensureGone(reference, watchStartNanoTime);
+      }
+    });
+  }
+
+```
+
+ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先理一下思路，前面onDestory以后，AndroidWatchExecutor这个东西执行excute方法，这个方法让主线程在空闲的时候发送了一个延时任务，该任务会在5秒延时后在一个子线程执行。理清了思路，我们看看这个任务是怎么执行的。
+
+```
+ Retryable.Result ensureGone(final KeyedWeakReference reference, final long watchStartNanoTime) {
+    long gcStartNanoTime = System.nanoTime();
+    long watchDurationMs = NANOSECONDS.toMillis(gcStartNanoTime - watchStartNanoTime);
+
+    removeWeaklyReachableReferences();
+
+    if (debuggerControl.isDebuggerAttached()) {
+      // The debugger can create false leaks.
+      return RETRY;
+    }
+    if (gone(reference)) {
+      return DONE;
+    }
+    gcTrigger.runGc();
+    removeWeaklyReachableReferences();
+    if (!gone(reference)) {
+      long startDumpHeap = System.nanoTime();
+      long gcDurationMs = NANOSECONDS.toMillis(startDumpHeap - gcStartNanoTime);
+
+      File heapDumpFile = heapDumper.dumpHeap();
+      if (heapDumpFile == RETRY_LATER) {
+        // Could not dump the heap.
+        return RETRY;
+      }
+      long heapDumpDurationMs = NANOSECONDS.toMillis(System.nanoTime() - startDumpHeap);
+      heapdumpListener.analyze(
+          new HeapDump(heapDumpFile, reference.key, reference.name, excludedRefs, watchDurationMs,
+              gcDurationMs, heapDumpDurationMs));
+    }
+    return DONE;
+  }
+```
+
+前面我们说过思路了，5秒延迟后先看看有没有回收，如果回收了，直接返回，没有发生内存泄漏，如果没有回收，触发GC，gc完成后，在此判断有没有回收，如果还没回收，说明泄漏了，收集泄漏信息，展示给开发者。而上面的代码完全按照这个思路来的。其中，removeWeaklyRechableReferences\(\)和gone\(reference\)这两个方法配合，用来判断对象是否被回收了,看代码：
+
+```
+  private void removeWeaklyReachableReferences() {
+    // WeakReferences are enqueued as soon as the object to which they point to becomes weakly
+    // reachable. This is before finalization or garbage collection has actually happened.
+    KeyedWeakReference ref;
+    while ((ref = (KeyedWeakReference) queue.poll()) != null) {
+      retainedKeys.remove(ref.key);
+    }
+  }
+```
+
+通过知识点1知道：被回收的对象都会放到设置的引用队列queue中,我们从queue中拿出所有的ref，根据他们的key匹配retainedKeys集合中的元素并删除。然后在gone\(\)函数里面判断key是否被移除.
+
+```
+  private boolean gone(KeyedWeakReference reference) {
+    return !retainedKeys.contains(reference.key);
+  }
+```
+
+如果Actiivty被gc了，它的key会加入到queue中，而queue中所有的key都会在上一个函数中被retainedKeys集合移除掉，所以该Activity的Key就不包含在retainedKeys里面了，返回true，被回收了。可以看到这个方法挺巧妙的，retainedKeys集合中所有的key，代表着这个Key对应的Activity没有被回收，removeWeaklyReachableReferences这个方法相当于更新这个集合
 
 
 
