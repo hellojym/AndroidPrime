@@ -93,14 +93,7 @@ public void watch(Object watchedReference, String referenceName) {
 ```
 
 整个LeakCanary最核心的方法就在这儿了。
-
-这里有个小知识点，弱引用和引用队列 
-
-`ReferenceQueue`
-
- 联合使用时，如果弱引用持有的对象被垃圾回收，Java 虚拟机就会把这个弱引用加入到与之关联的引用队列中。即`KeyedWeakReference`持有的 `Activity`
-
- 对象如果被垃圾回收，该对象就会加入到引用队列`queue`
+这里有个小知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue
 
 
 
