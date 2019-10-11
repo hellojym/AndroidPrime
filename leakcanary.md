@@ -106,7 +106,7 @@ public void watch(Object watchedReference, String referenceName) {
  * @author   Mark Reinhold
  * @since    1.2
  */
-public class ReferenceQueue<T> 
+public class ReferenceQueue<T>
 ```
 
 证实了上面的说法,另外看名字我们就知道，不光弱引用，软和虚引用也可以这样做。
@@ -246,5 +246,7 @@ ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先�
 
 总结：本文阐述了LeakCanary的核心原理，其思路大致为：监听Activity生命周期-&gt;onDestroy以后延迟5秒判断Activity有没有被回收-&gt;如果没有回收,调用GC，在此判断是否回收，如果还没回收，则内存泄露了，反之，没有泄露。用到的一个核心技巧就是弱引用的一个构造方法：传入一个RefrenceQueue，可以记录被垃圾回收的对象引用。
 
-说个题外话，一个对象都被回收了，他的弱引用咋办，总不能一直留着吧，（引用本身也是一个强引用对象，不要把引用和引用的对象搞混了，对象可以被回收了，但是它的引用，包括软，弱，虚引用都可以继续存在）,完全不用担心，这个引用在无用之后也会被GC回收的。
+说个题外话，一个对象都被回收了，他的弱引用咋办，总不能一直留着吧，（引用本身也是一个强引用对象，不要把引用和引用的对象搞混了，对象可以被回收了，但是它的引用，包括软，弱，虚引用都可以继续存在）。完全不用担心，这个引用在无用之后也会被GC回收的。
+
+以上就是所有内容了，可以看出来LeakCanary其实算是个比较简单的库了～
 
