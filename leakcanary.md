@@ -98,17 +98,9 @@ public void watch(Object watchedReference, String referenceName) {
 
 **这里有个小知识点，弱引用和引用队列ReferenceQueue联合使用时，如果弱引用持有的对象被垃圾回收，Java虚拟机就会把这个弱引用加入到与之关联的引用队列中。即 KeyedWeakReference持有的Activity对象如果被垃圾回收，该对象就会加入到引用队列queue。**
 
+因此重点是最后一句:ensureGoneAsyc，看字面意思，异步确保消失。这里我们先不看代码，如果要自己设计一套检测方案的话，怎么想？其实很简单，就是在Activiy onDestroy以后，我们等一会，检测一下这个Acitivity有没有被回收，这里等一会要多久呢？而且GC的时机在app运行时我们无法确定，所以为了确保GC以后Activity还没回收，我们需要手动GC一下。
 
-
-
-
-
-
-
-
-
-
-
+**其实LeakCanary也是这个思路：onDestroy以后，当主线程空闲下来以后，延时5秒执行一个任务，先判断Activity有没有被回收？如果已经回收了，说明没有内存泄漏，如果还没回收，我们进一步确认，手动触发一下gc，然后再判断有没有回收，如果这次还没回收，说明Activity确实泄漏了。**
 
 
 
