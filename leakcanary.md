@@ -1,7 +1,5 @@
 # LeakCanary原理浅析
 
-
-
 废话少说，直接从入口开始：
 
 ```
@@ -29,9 +27,9 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
   }
 ```
 
-build\(\)方法主要是配置：
+**build\(\)**
 
-`watchExecutor` : 线程控制器，在 onDestroy()之后并且主线程空闲时执行内存泄漏检测
+`watchExecutor` : 线程控制器，在 onDestroy\(\)之后并且主线程空闲时执行内存泄漏检测
 
 `debuggerControl`: 判断是否处于调试模式，调试模式中不会进行内存泄漏检测
 
@@ -45,6 +43,54 @@ build\(\)方法主要是配置：
 
 `excludedRefs`: 排除可以忽略的泄漏路径
 
-  
 
+
+**LeakCanary.enableDisplayLeakActivity\(context\)**
+
+这行代码主要是为了开启LeakCanary的应用，显示其图标.
+
+接下来是重点：
+
+**ActivityRefWatcher.installOnIcsPlus\(\(Application\) context, refWatcher\)**
+
+它会进入：
+
+```
+    ActivityRefWatcher activityRefWatcher = new ActivityRefWatcher(application, refWatcher);
+    activityRefWatcher.watchActivities();
+```
+
+```
+    stopWatchingActivities();
+    application.registerActivityLifecycleCallbacks(lifecycleCallbacks);
+```
+
+上面一行代码是为了确保不会重复绑定,之后监听Activity的生命周期。
+
+```
+        @Override public void onActivityDestroyed(Activity activity) {
+          ActivityRefWatcher.this.onActivityDestroyed(activity);
+        }
+```
+
+Activity销毁时执行onActivityDestroyed方法,进入看看：
+
+```
+public void watch(Object watchedReference, String referenceName) {
+    if (this == DISABLED) {
+      return;
+    }
+    checkNotNull(watchedReference, "watchedReference");
+    checkNotNull(referenceName, "referenceName");
+    final long watchStartNanoTime = System.nanoTime();
+    String key = UUID.randomUUID().toString();
+    retainedKeys.add(key);
+    final KeyedWeakReference reference =
+        new KeyedWeakReference(watchedReference, key, referenceName, queue);
+
+    ensureGoneAsync(watchStartNanoTime, reference);
+  }
+```
+
+整个LeakCanary最核心的方法就在这儿了。
 
