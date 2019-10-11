@@ -43,8 +43,6 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
 
 `excludedRefs`: 排除可以忽略的泄漏路径
 
-
-
 **LeakCanary.enableDisplayLeakActivity\(context\)**
 
 这行代码主要是为了开启LeakCanary的应用，显示其图标.
@@ -59,6 +57,8 @@ builder模式构建了一个RefWatcher对象,`listenerServiceClass()`方法绑�
     ActivityRefWatcher activityRefWatcher = new ActivityRefWatcher(application, refWatcher);
     activityRefWatcher.watchActivities();
 ```
+
+接下来：
 
 ```
     stopWatchingActivities();
@@ -93,4 +93,14 @@ public void watch(Object watchedReference, String referenceName) {
 ```
 
 整个LeakCanary最核心的方法就在这儿了。
+
+这里有个小知识点，弱引用和引用队列 
+
+`ReferenceQueue`
+
+ 联合使用时，如果弱引用持有的对象被垃圾回收，Java 虚拟机就会把这个弱引用加入到与之关联的引用队列中。即`KeyedWeakReference`持有的 `Activity`
+
+ 对象如果被垃圾回收，该对象就会加入到引用队列`queue`
+
+
 
