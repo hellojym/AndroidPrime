@@ -98,7 +98,6 @@ pom.groupId，version，artifactId分别表示我们这个包的组名，版本�
 打开根目录下的build.gradle,填入以下内容：
 
 ```
-
 buildscript {
     repositories {
 
@@ -107,7 +106,7 @@ buildscript {
         }
         google()
         jcenter()
-        
+
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.5.1'
@@ -119,14 +118,13 @@ allprojects {
     repositories {
         google()
         jcenter()
-        
+
     }
 }
 
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
-
 ```
 
 相比于默认配置，修改了两处：添加maven地址，让其URL指向我们插件的本地路径，也就是代码中的第三行。第二处就是在dependencies中添加我们插件的classpath。classpath这个东西可以理解成加载插件的所依赖需要的资源，（implemetation是项目需要依赖的资源,一个是给构建工程用的，另一个是项目代码用到的，要打到最终apk里的）。
@@ -139,5 +137,5 @@ apply plugin 'com.bruce.hello'
 
 大功告成～
 
-如果你搞了半天还是不行，请查看项目[https://github.com/hellojym/GradlePlugin](https://github.com/hellojym/GradlePlugin "项目git")
+如果你搞了半天还是不行，请查看项目   [https://github.com/hellojym/GradlePlugin](https://github.com/hellojym/GradlePlugin "项目git")
 
