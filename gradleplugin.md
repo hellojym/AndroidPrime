@@ -41,6 +41,8 @@ class HelloWorld implements Plugin<Project> {
 
 简单的一个helloworld。之后在resources文件夹下新建文件,直接看下图所示：
 
+![](https://s2.ax1x.com/2019/10/12/uO7zO1.png)
+
 注意，META-INFO和gradle-plugins是两层文件夹路径，千万别写错了，大家一定要按照图中对应的结构编写，仔细对照一遍。
 
 我们看com.bruce.hello.properties这个文件，首先是它的名字，这个名字很重要，.properties前面的字符串就是最后我们apply插件的名字，也就是我们 apply plugins 'xxxxxxxx'中的xxxxxx，这里我起的名叫com.bruce.hello,然后我们看这个文件里面的内容，很简单，只有一行：
