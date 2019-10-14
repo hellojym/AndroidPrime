@@ -1,4 +1,5 @@
 # LeakCanary原理浅析
+
 LeakCanary是Android内存泄漏的框架，作为一个“面试常见问题”，它一定有值得学习的地方，今天我们就讲一下它。作为一名开发，我觉得给人讲框架或者库的原理，最好先把大概思路给读者讲一下，这样读者后面会按照这个框架往里填内容，理解起来也更容易一些，所以我先把LeakCanary的大致原理放出来：
 
 其思路大致为：监听Activity生命周期-&gt;onDestroy以后延迟5秒判断Activity有没有被回收-&gt;如果没有回收,调用GC，再此判断是否回收，如果还没回收，则内存泄露了，反之，没有泄露。整个框架最核心的问题就是在什么时间点如何判断一个Activity是否被回收了。
@@ -45,7 +46,6 @@ build\(\)方法，这个方法主要是配置一些东西，先大概了解一�
 `heapDumpListener`: 解析完hprof文件并通知DisplayLeakService弹出提醒
 
 `excludedRefs`: 排除可以忽略的泄漏路径
-
 
 **LeakCanary.enableDisplayLeakActivity\(context\)**
 
@@ -251,5 +251,12 @@ ensureGone\(reference,watchStartNanoTime\),在看它干了啥之前，我们先�
 稍微总结一下，我觉得这个框架中用到的一个很重要但冷门技巧就是弱引用的构造方法：传入一个RefrenceQueue，可以记录被垃圾回收的对象引用。说个题外话，一个对象都被回收了，他的弱引用咋办，总不能一直留着吧，（引用本身也是一个强引用对象，不要把引用和引用的对象搞混了，对象可以被回收了，但是它的引用，包括软，弱，虚引用都可以继续存在）。完全不用担心，这个引用在无用之后也会被GC回收的。
 
 以上就是所有内容了，可以看出来LeakCanary其实算是个比较简单的库了～
+
+
+
+## 最后，简单说两句BlockCanary
+
+BlockCanary原理很简单，为了检测是否卡顿，它利用现有的Looper里的日志机制，在Loopper的for\(;;\)循环里，每当有消息到来，looper就会对消息进行处理，处理开始之前会会调用Looper里的Printer进行打印，处理完后\(dispatchMessage\)，会再此打印，而这个打印的Printer是可以设置的，Looper对外提供了set方法，BlockCanary就是设置成自己的LooperMonitor,第一次打印记录时间，处理完消息第二次打印时再次记下时间，比较两次时间差，如果大于默认300ms，就认为发生了卡顿。另外，Blockcanary启动一个子线程，在两次打印的间隔会有两个Sampler在这个子线程中对Cpu和堆栈信息进行记录分析，一旦卡顿了，这个记录就会展示给用户。
+
 
 
