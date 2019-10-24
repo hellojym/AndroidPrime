@@ -41,7 +41,7 @@ class HelloWorld implements Plugin<Project> {
 
 简单的一个helloworld。之后在resources文件夹下新建文件,直接看下图所示：
 
-![](https://s2.ax1x.com/2019/10/12/uO7zO1.png)
+<img src="https://s2.ax1x.com/2019/10/12/uO7zO1.png" alt="项目结构" style="zoom:80%;" />
 
 注意，META-INFO和gradle-plugins是两层文件夹路径，千万别写错了，大家一定要按照图中对应的结构编写，仔细对照一遍。
 
